@@ -122,13 +122,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Used by extendr-engine becomes DEP_R_R_HOME for clients
     println!("cargo:r_home={}", r_paths.r_home.display());
+    println!("cargo::rustc-env=R_HOME={}", r_paths.r_home.display());
     // used by extendr-api
     println!("cargo:r_version_major={}", r_paths.version.major);
     println!("cargo:r_version_minor={}", r_paths.version.minor);
     println!("cargo:r_version_patch={}", r_paths.version.patch);
 
-    // Set R version specfic config flags
+    let pkg_target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+    let libdir = match (cfg!(windows), pkg_target_arch.as_str()) {
+        // For Windows
+        (true, "x86_64") => Path::new(&r_paths.r_home).join("bin").join("x64"),
+        (true, "x86") => Path::new(&r_paths.r_home).join("bin").join("i386"),
+        (true, _) => panic!("Unknown architecture"),
+        // For Unix-alike
+        (false, _) => Path::new(&r_paths.r_home).join("lib"),
+    };
 
+    if let Ok(r_library) = libdir.canonicalize() {
+        println!("cargo:rustc-link-search={}", r_library.display());
+    }
+    println!("cargo:rustc-link-lib=dylib=R");
+
+    // Set R version specfic config flags
     // use r_4_4 config
     if (r_paths.version.major, r_paths.version.minor) >= (4, 4) {
         println!("cargo:rustc-cfg=r_4_4")
