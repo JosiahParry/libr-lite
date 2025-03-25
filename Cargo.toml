@@ -3,3 +3,7 @@ name = "libR-sys"
 version = "0.7.1"
 edition = "2021"
 links = "R"
+
+[features]
+default = []
+non-api = []

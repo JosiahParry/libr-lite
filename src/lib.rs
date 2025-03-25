@@ -12,6 +12,11 @@ pub use symbols::*;
 pub mod backports;
 pub use backports::*;
 
+#[cfg(feature = "non-api")]
+mod non_api;
+#[cfg(feature = "non-api")]
+pub use non_api::*;
+
 #[non_exhaustive]
 #[repr(transparent)]
 #[derive(Debug)]
