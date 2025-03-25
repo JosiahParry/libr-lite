@@ -9,12 +9,10 @@ use std::{
 
 // The environmental variables that are usually set by R. These might be needed
 // to set manually if we compile libR-sys outside of an R session.
-//
 // c.f., https://stat.ethz.ch/R-manual/R-devel/library/base/html/EnvVar.html
 const ENVVAR_R_HOME: &str = "R_HOME";
 const ENVVAR_R_INCLUDE_DIR: &str = "R_INCLUDE_DIR";
 
-#[derive(Debug)]
 struct Version {
     major: u8,
     minor: u8,
@@ -82,7 +80,7 @@ impl Version {
         Ok(r_ver)
     }
 }
-#[derive(Debug)]
+
 struct InstallationPaths {
     r_home: PathBuf,
     version: Version,
@@ -114,15 +112,31 @@ impl InstallationPaths {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo:rustc-check-cfg=cfg(r_4_4)");
+    println!("cargo:rustc-check-cfg=cfg(r_4_5)");
+
+    // Fetch R_HOME and R version
     let r_paths = InstallationPaths::try_new()?;
 
-    // Used by extendr-engine
-    // Becomes DEP_R_R_HOME for clients
+    // Used by extendr-engine becomes DEP_R_R_HOME for clients
     println!("cargo:r_home={}", r_paths.r_home.display());
     // used by extendr-api
     println!("cargo:r_version_major={}", r_paths.version.major);
     println!("cargo:r_version_minor={}", r_paths.version.minor);
     println!("cargo:r_version_patch={}", r_paths.version.patch);
+
+    // Set R version specfic config flags
+
+    // use r_4_4 config
+    if (r_paths.version.major, r_paths.version.minor) >= (4, 4) {
+        println!("cargo:rust-cfg=r_4_4")
+    }
+
+    // use r_4_5 config
+    if (r_paths.version.major, r_paths.version.minor) >= (4, 5) {
+        println!("cargo:rust-cfg=r_4_5")
+    }
+
     // Only re-run if the include directory changes
     println!("cargo:rerun-if-env-changed=R_INCLUDE_DIR");
 
