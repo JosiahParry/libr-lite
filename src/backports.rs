@@ -45,6 +45,12 @@ unsafe extern "C" {
 
     #[cfg(r_4_5)]
     pub fn R_ClosureFormals(x: SEXP) -> SEXP;
+
+    #[cfg(not(r_4_5))]
+    pub fn DATAPTR(x: SEXP) -> *mut ::std::os::raw::c_void;
+
+    #[cfg(r_4_5)]
+    pub fn DATAPTR_RO(x: SEXP) -> *const ::std::os::raw::c_void;
 }
 
 #[inline]
@@ -116,5 +122,17 @@ pub unsafe fn get_closure_formals(x: SEXP) -> SEXP {
     #[cfg(r_4_5)]
     {
         R_ClosureFormals(x)
+    }
+}
+
+#[inline]
+pub unsafe fn dataptr(x: SEXP) -> *const ::std::os::raw::c_void {
+    #[cfg(not(r_4_5))]
+    {
+        DATAPTR(x) as *const _
+    }
+    #[cfg(r_4_5)]
+    {
+        DATAPTR_RO(x)
     }
 }

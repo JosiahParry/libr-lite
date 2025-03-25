@@ -99,7 +99,9 @@ impl InstallationPaths {
 
                 let mut cmd = Command::new(r_cmd);
                 cmd.args(["-s", "-e", "cat(R.home())"]);
-                String::from_utf8(cmd.output()?.stdout)?
+                let res = String::from_utf8(cmd.output()?.stdout)?;
+                println!("cargo::warning=R_HOME found at {res}");
+                res
             }
             Ok(v) => v,
         };
