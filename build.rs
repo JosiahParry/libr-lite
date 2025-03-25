@@ -113,18 +113,18 @@ impl InstallationPaths {
     }
 }
 
-fn set_r_version_vars(ver: &Version) {
-    println!("cargo:r_version_major={}", ver.major);
-    println!("cargo:r_version_minor={}", ver.minor);
-    println!("cargo:r_version_patch={}", ver.patch);
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let r_paths = InstallationPaths::try_new()?;
+
     // Used by extendr-engine
-    println!("cargo:r_home={}", r_paths.r_home.display()); // Becomes DEP_R_R_HOME for clients
-    println!("cargo:rerun-if-changed=build.rs");
-    set_r_version_vars(&r_paths.version);
+    // Becomes DEP_R_R_HOME for clients
+    println!("cargo:r_home={}", r_paths.r_home.display());
+    // used by extendr-api
+    println!("cargo:r_version_major={}", r_paths.version.major);
+    println!("cargo:r_version_minor={}", r_paths.version.minor);
+    println!("cargo:r_version_patch={}", r_paths.version.patch);
+    // Only re-run if the include directory changes
+    println!("cargo:rerun-if-env-changed=R_INCLUDE_DIR");
 
     Ok(())
 }
