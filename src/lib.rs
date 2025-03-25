@@ -9,6 +9,8 @@ pub mod altrep;
 pub use altrep::*;
 mod symbols;
 pub use symbols::*;
+pub mod backports;
+pub use backports::*;
 
 #[non_exhaustive]
 #[repr(transparent)]
@@ -95,9 +97,9 @@ pub enum SEXPTYPE {
     WEAKREFSXP = 23,
     #[doc = "raw bytes"]
     RAWSXP = 24,
-    #[cfg(not(r_4_4))]
+    #[cfg(not(r_4_5))]
     S4SXP = 25,
-    #[cfg(r_4_4)]
+    #[cfg(r_4_5)]
     #[doc = "S4 non-vector"]
     OBJSXP = 25,
     #[doc = "fresh node created in new page"]
@@ -237,17 +239,13 @@ unsafe extern "C" {
     pub fn REprintf(arg1: *const ::std::os::raw::c_char, ...);
     pub fn ALTREP(x: SEXP) -> ::std::os::raw::c_int;
     pub fn ALTREP_CLASS(x: SEXP) -> SEXP;
-    pub fn BODY(x: SEXP) -> SEXP;
     pub fn CAR(e: SEXP) -> SEXP;
     pub fn CDR(e: SEXP) -> SEXP;
-    pub fn CLOENV(x: SEXP) -> SEXP;
     pub fn COMPLEX(x: SEXP) -> *mut Rcomplex;
     pub fn COMPLEX_GET_REGION(sx: SEXP, i: R_xlen_t, n: R_xlen_t, buf: *mut Rcomplex) -> R_xlen_t;
     pub fn DATAPTR(x: SEXP) -> *mut ::std::os::raw::c_void;
     pub fn DATAPTR_RO(x: SEXP) -> *const ::std::os::raw::c_void;
     pub fn DATAPTR_OR_NULL(x: SEXP) -> *const ::std::os::raw::c_void;
-    pub fn ENCLOS(x: SEXP) -> SEXP;
-    pub fn FORMALS(x: SEXP) -> SEXP;
     pub fn GetRNGstate();
     pub fn PutRNGstate();
     pub fn INTEGER(x: SEXP) -> *mut ::std::os::raw::c_int;
@@ -378,8 +376,6 @@ unsafe extern "C" {
     pub fn Rf_duplicate(arg1: SEXP) -> SEXP;
     pub fn Rf_error(arg1: *const ::std::os::raw::c_char, ...) -> !;
     pub fn Rf_findFun(arg1: SEXP, arg2: SEXP) -> SEXP;
-    pub fn Rf_findVar(arg1: SEXP, arg2: SEXP) -> SEXP;
-    pub fn Rf_findVarInFrame(arg1: SEXP, arg2: SEXP) -> SEXP;
     pub fn Rf_GetArrayDimnames(arg1: SEXP) -> SEXP;
     pub fn Rf_getAttrib(arg1: SEXP, arg2: SEXP) -> SEXP;
     pub fn Rf_GetColNames(arg1: SEXP) -> SEXP;

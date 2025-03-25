@@ -129,12 +129,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // use r_4_4 config
     if (r_paths.version.major, r_paths.version.minor) >= (4, 4) {
-        println!("cargo:rust-cfg=r_4_4")
+        println!("cargo:rustc-cfg=r_4_4")
     }
 
     // use r_4_5 config
     if (r_paths.version.major, r_paths.version.minor) >= (4, 5) {
-        println!("cargo:rust-cfg=r_4_5")
+        println!("cargo:rustc-cfg=r_4_5")
     }
 
     // Only re-run if the include directory changes
