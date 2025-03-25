@@ -1,6 +1,5 @@
 [package]
 name = "libR-sys"
-version = "0.1.0"
+version = "0.7.1"
 edition = "2021"
-
-[dependencies]
+links = "R"

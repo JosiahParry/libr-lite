@@ -1,348 +1,130 @@
-#[allow(non_upper_case_globals)]
 use std::{
-    env,
-    ffi::{OsStr, OsString},
-    io,
-    io::{Error, ErrorKind},
+    error::Error,
+    fs::read_to_string,
+    num::ParseIntError,
     path::{Path, PathBuf},
-    process::{exit, Command},
+    process::Command,
+    str::FromStr,
 };
-
-#[cfg(target_family = "unix")]
-use std::os::unix::ffi::OsStrExt;
-
-#[cfg(target_family = "windows")]
-use std::os::windows::ffi::OsStringExt;
 
 // The environmental variables that are usually set by R. These might be needed
 // to set manually if we compile libR-sys outside of an R session.
 //
 // c.f., https://stat.ethz.ch/R-manual/R-devel/library/base/html/EnvVar.html
 const ENVVAR_R_HOME: &str = "R_HOME";
+const ENVVAR_R_INCLUDE_DIR: &str = "R_INCLUDE_DIR";
 
-// An R version (e.g., "4.1.2" or "4.2.0-devel"). When this is set, the actual R
-// binary is not executed. This might be useful in some cases of cross-compile.
-// c.f., https://github.com/extendr/libR-sys/issues/85
-const ENVVAR_R_VERSION: &str = "LIBRSYS_R_VERSION";
+#[derive(Debug)]
+struct Version {
+    major: u8,
+    minor: u8,
+    patch: u8,
+}
 
+impl FromStr for Version {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.splitn(3, ".").collect::<Vec<_>>();
+        Ok(Self {
+            major: parts[0].parse::<u8>()?,
+            minor: parts[1].parse::<u8>()?,
+            patch: parts[2].parse::<u8>()?,
+        })
+    }
+}
+
+fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
+    let ver_h = path.join("Rversion.h");
+    let content = read_to_string(ver_h)?;
+
+    let major = content
+        .lines()
+        .find(|line| line.starts_with("#define R_MAJOR"))
+        .and_then(|line| line.split_whitespace().nth(2))
+        .and_then(|v| v.trim_matches('"').to_string().into())
+        .unwrap_or_default();
+
+    let minor = content
+        .lines()
+        .find(|line| line.starts_with("#define R_MINOR"))
+        .and_then(|line| line.split_whitespace().nth(2))
+        .and_then(|v| v.trim_matches('"').to_string().into())
+        .unwrap_or_default();
+
+    Ok(Version::from_str(&format!("{major}.{minor}"))?)
+}
+
+impl Version {
+    fn try_new() -> Result<Self, Box<dyn Error>> {
+        let include_dir = match std::env::var(ENVVAR_R_INCLUDE_DIR) {
+            Ok(v) => v,
+            Err(_) => {
+                println!(
+                    "cargo::warning=R_INCLUDE_DIR not found. Likely being built outside of R."
+                );
+                let r_cmd = match cfg!(windows) {
+                    true => "R.exe",
+                    false => "R",
+                };
+
+                let mut cmd = Command::new(r_cmd);
+                // print the include dir from R
+                cmd.args(["--vanilla", "-s", "-e", "cat(R.home('include'))"]);
+
+                let out = cmd.output()?.stdout;
+                String::from_utf8(out)?
+            }
+        };
+
+        let r_ver = read_r_ver(&Path::new(&include_dir))?;
+
+        Ok(r_ver)
+    }
+}
 #[derive(Debug)]
 struct InstallationPaths {
     r_home: PathBuf,
-    library: PathBuf,
+    version: Version,
 }
 
 impl InstallationPaths {
-    fn get_r_binary(&self) -> PathBuf {
-        if cfg!(windows) {
-            Path::new(&self.library).join("R.exe")
-        } else {
-            Path::new(&self.r_home).join("bin").join("R")
-        }
-    }
-}
+    fn try_new() -> Result<Self, Box<dyn Error>> {
+        // If R_HOME is unset then we try and call R directly.
+        let r_home = match std::env::var(ENVVAR_R_HOME) {
+            Err(_) => {
+                println!("cargo::warning=R_HOME not found. Likely being built outside of R.");
+                let r_cmd = match cfg!(windows) {
+                    true => "R.exe",
+                    false => "R",
+                };
 
-#[allow(dead_code)]
-#[derive(Debug)]
-struct RVersionInfo {
-    major: String,
-    minor: String,
-    patch: String,
-    devel: bool,
-    full: String,
-}
-
-#[derive(Debug)]
-enum EnvVarError {
-    EnvVarNotPresent,
-    InvalidEnvVar(&'static str),
-    RInvocationError(io::Error),
-    InvalidROutput(&'static str),
-}
-
-// frustratingly, something like the following does not exist in an
-// OS-independent way in Rust
-#[cfg(target_family = "unix")]
-fn byte_array_to_os_string(bytes: &[u8]) -> OsString {
-    let os_str = OsStr::from_bytes(bytes);
-    os_str.to_os_string()
-}
-
-#[link(name = "kernel32")]
-#[cfg(target_family = "windows")]
-extern "system" {
-    #[link_name = "GetConsoleCP"]
-    fn get_console_code_page() -> u32;
-    #[link_name = "MultiByteToWideChar"]
-    fn multi_byte_to_wide_char(
-        CodePage: u32,
-        dwFlags: u32,
-        lpMultiByteStr: *const u8,
-        cbMultiByte: i32,
-        lpWideCharStr: *mut u16,
-        cchWideChar: i32,
-    ) -> i32;
-}
-
-// convert bytes to wide-encoded characters on Windows
-// from: https://stackoverflow.com/a/40456495/4975218
-#[cfg(target_family = "windows")]
-fn wide_from_console_string(bytes: &[u8]) -> Vec<u16> {
-    assert!(bytes.len() < std::i32::MAX as usize);
-    let mut wide;
-    let mut len;
-    unsafe {
-        let cp = get_console_code_page();
-        len = multi_byte_to_wide_char(
-            cp,
-            0,
-            bytes.as_ptr() as *const u8,
-            bytes.len() as i32,
-            std::ptr::null_mut(),
-            0,
-        );
-        wide = Vec::with_capacity(len as usize);
-        len = multi_byte_to_wide_char(
-            cp,
-            0,
-            bytes.as_ptr() as *const u8,
-            bytes.len() as i32,
-            wide.as_mut_ptr(),
-            len,
-        );
-        wide.set_len(len as usize);
-    }
-    wide
-}
-
-#[cfg(target_family = "windows")]
-fn byte_array_to_os_string(bytes: &[u8]) -> OsString {
-    // first, use Windows API to convert to wide encoded
-    let wide = wide_from_console_string(bytes);
-    // then, use `std::os::windows::ffi::OsStringExt::from_wide()`
-    OsString::from_wide(&wide)
-}
-
-// Execute an R script and return the captured output
-fn r_command<S: AsRef<OsStr>>(r_binary: S, script: &str) -> io::Result<OsString> {
-    // we must use --vanilla,
-    // 1. user Rprofile may contain message into stdout
-    // 2. prevent R startup message
-    let out = Command::new(r_binary)
-        .args(["-s", "--vanilla", "-e", script])
-        .output()?;
-
-    // if there are any errors we print them out, helps with debugging
-    if !out.stderr.is_empty() {
-        println!(
-            "cargo:warning={}",
-            byte_array_to_os_string(&out.stderr)
-                .as_os_str()
-                .to_string_lossy()
-        );
-    }
-
-    Ok(byte_array_to_os_string(&out.stdout))
-}
-
-// Get the path to the R home either from an envvar or by executing the actual R binary on PATH.
-fn get_r_home() -> io::Result<PathBuf> {
-    // If the environment variable R_HOME is set we use it
-    if let Some(r_home) = env::var_os(ENVVAR_R_HOME) {
-        return Ok(PathBuf::from(r_home));
-    }
-
-    // Otherwise, we try to execute `R` to find `R_HOME`. Note that this is
-    // discouraged, see Section 1.6 of "Writing R Extensions"
-    // https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Writing-portable-packages
-    let rout = r_command("R", r#"cat(normalizePath(R.home()))"#)?;
-    if !rout.is_empty() {
-        Ok(PathBuf::from(rout))
-    } else {
-        Err(Error::new(ErrorKind::Other, "Cannot find R home."))
-    }
-}
-
-// Get the path to the R library
-fn get_r_library(r_home: &Path) -> PathBuf {
-    let pkg_target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
-    match (cfg!(windows), pkg_target_arch.as_str()) {
-        // For Windows
-        (true, "x86_64") => Path::new(r_home).join("bin").join("x64"),
-        (true, "x86") => Path::new(r_home).join("bin").join("i386"),
-        (true, _) => panic!("Unknown architecture"),
-        // For Unix-alike
-        (false, _) => Path::new(r_home).join("lib"),
-    }
-}
-
-fn probe_r_paths() -> io::Result<InstallationPaths> {
-    // First we locate the R home
-    let r_home = get_r_home()?;
-
-    // Now the library location. On Windows, it depends on the target architecture
-    let library = get_r_library(&r_home);
-
-    Ok(InstallationPaths { r_home, library })
-}
-
-// Parse an R version (e.g. "4.1.2" and "4.2.0-devel") and return the RVersionInfo.
-fn parse_r_version(r_version: String) -> Result<RVersionInfo, EnvVarError> {
-    let full = r_version.clone();
-    // First, split "<major>.<minor>.<patch>-devel" to "<major>.<minor>.<patch>" and "devel"
-    let (r_version, devel) = match *r_version.split('-').collect::<Vec<&str>>().as_slice() {
-        [r_version, devel] => (r_version, Some(devel)),
-        [r_version] => (r_version, None),
-        // if the length is more than 2 or 0, the version is in invalid format
-        _ => return Err(EnvVarError::InvalidEnvVar("Invalid format")),
-    };
-
-    // Split "<major>.<minor>.<patch>" to "<major>", "<minor>", and "<patch>"
-    let r_version_split = r_version
-        .split('.')
-        .map(|s| {
-            // Good:
-            //   - "4.1.2"
-            //
-            // Bad:
-            //   - "4.1.foo" (some part contains any non-digit characters)
-            //   - "4.1." (some part is missing)
-            if !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()) {
-                Some(s)
-            } else {
-                None
+                let mut cmd = Command::new(r_cmd);
+                cmd.args(["-s", "-e", "cat(R.home())"]);
+                String::from_utf8(cmd.output()?.stdout)?
             }
+            Ok(v) => v,
+        };
+
+        Ok(InstallationPaths {
+            r_home: Path::new(&r_home).to_path_buf(),
+            version: Version::try_new()?,
         })
-        .collect::<Vec<Option<&str>>>();
-
-    let (major, minor, patch) = match *r_version_split.as_slice() {
-        // if any of the first three items doesn't exist, the format is invalid
-        [] | [None, ..] => return Err(EnvVarError::InvalidEnvVar("Cannot find R major version")),
-        [_, None, ..] => return Err(EnvVarError::InvalidEnvVar("Cannot find R minor version")),
-        [_, _, None, ..] => return Err(EnvVarError::InvalidEnvVar("Cannot find R patch level")),
-        // if all of the first three items exist, the format is valid
-        [Some(major), Some(minor), Some(patch)] => {
-            (major.to_string(), minor.to_string(), patch.to_string())
-        }
-        // if the length is longer than 3, the format is invalid
-        _ => return Err(EnvVarError::InvalidEnvVar("Invalid format")),
-    };
-
-    let devel = match devel {
-        Some("devel") => true,
-        Some(_) => {
-            return Err(EnvVarError::InvalidEnvVar(
-                "Cannot find R development status",
-            ));
-        }
-        None => false,
-    };
-
-    Ok(RVersionInfo {
-        major,
-        minor,
-        patch,
-        devel,
-        full,
-    })
-}
-
-fn get_r_version_from_env(r_version_env_var: &str) -> Result<RVersionInfo, EnvVarError> {
-    std::env::var(r_version_env_var)
-        // Any error arising from reading env var is converted to this value
-        .map_err(|_| EnvVarError::EnvVarNotPresent)
-        .and_then(parse_r_version)
-}
-
-fn get_r_version_from_r(r_paths: &InstallationPaths) -> Result<RVersionInfo, EnvVarError> {
-    let r_binary = r_paths.get_r_binary();
-
-    // This R script prints the R version to stdout.
-    //
-    // Example 1) R 4.1.2 (released version)
-    //
-    // ```
-    // 4.1.2
-    // ```
-    //
-    // Example 2) R 4.2.0 (development version)
-    //
-    // ```
-    // 4.2.0-devel
-    // ```
-    let out = r_command(
-        r_binary,
-        r"cat(sprintf('%s.%s%s\n', R.version$major, R.version$minor, if(isTRUE(grepl('devel', R.version$status, fixed = TRUE))) '-devel' else ''))",
-    )
-        .map_err(EnvVarError::RInvocationError)?;
-
-    let out = out.as_os_str().to_string_lossy().into_owned();
-    let mut lines = out.lines();
-
-    // Process the first line of the output
-    match lines.next() {
-        Some(v) => parse_r_version(v.to_string()),
-        None => Err(EnvVarError::InvalidROutput("Cannot find R version")),
     }
 }
 
-fn get_r_version(
-    r_version_env_var: &str,
-    r_paths: &InstallationPaths,
-) -> Result<RVersionInfo, EnvVarError> {
-    // Try looking for the envvar first.
-    match get_r_version_from_env(r_version_env_var) {
-        // If the envvar is found and it can be parsed as a valid RVersionInfo, use it.
-        Ok(v) => Ok(v),
-        // If the envvar is not present, then use the actual R binary to get the version.
-        Err(EnvVarError::EnvVarNotPresent) => get_r_version_from_r(r_paths),
-        // In the case of any error other than the absence of envvar, stop with
-        // that error because it means the envvar is set and something is wrong.
-        e @ Err(_) => e,
-    }
-}
-
-fn set_r_version_vars(ver: &RVersionInfo) {
+fn set_r_version_vars(ver: &Version) {
     println!("cargo:r_version_major={}", ver.major);
     println!("cargo:r_version_minor={}", ver.minor);
     println!("cargo:r_version_patch={}", ver.patch);
-    println!("cargo:r_version_devel={}", ver.devel);
-    println!("cargo:rustc-env=DEP_R_R_VERSION_MAJOR={}", ver.major);
-    println!("cargo:rustc-env=DEP_R_R_VERSION_MINOR={}", ver.minor);
-    println!("cargo:rustc-env=DEP_R_R_VERSION_PATCH={}", ver.patch);
 }
 
-fn main() {
-    let r_paths = probe_r_paths();
-
-    eprintln!("TESTING");
-    let r_paths = match r_paths {
-        Ok(result) => result,
-        Err(error) => {
-            println!(
-                "cargo:warning=Problem locating local R install: {:?}",
-                error
-            );
-            exit(1);
-        }
-    };
-
-    println!("cargo:rustc-env=R_HOME={}", r_paths.r_home.display());
+fn main() -> Result<(), Box<dyn Error>> {
+    let r_paths = InstallationPaths::try_new()?;
+    // Used by extendr-engine
     println!("cargo:r_home={}", r_paths.r_home.display()); // Becomes DEP_R_R_HOME for clients
-
-    // TODO: r_library might not exist in some types of installation that
-    // doesn't provide libR, R's shared library; in such a situation, just skip
-    // setting `rustc-link-search`. Probably this setting itself is not used at
-    // all except when compiled for testing, but we are not sure at the moment.
-    if let Ok(r_library) = r_paths.library.canonicalize() {
-        println!("cargo:rustc-link-search={}", r_library.display());
-    }
-    println!("cargo:rustc-link-lib=dylib=R");
-
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=wrapper.h");
+    set_r_version_vars(&r_paths.version);
 
-    // extract version info from R and output for use by downstream crates
-    let version_info =
-        get_r_version(ENVVAR_R_VERSION, &r_paths).expect("Could not obtain R version");
-    set_r_version_vars(&version_info);
+    Ok(())
 }
