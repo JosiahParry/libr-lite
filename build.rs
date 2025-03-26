@@ -34,6 +34,10 @@ impl FromStr for Version {
 
 fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
     let ver_h = path.join("Rversion.h");
+    println!(
+        "cargo::warning=Attempting to read version from: {}",
+        ver_h.display()
+    );
     let content = read_to_string(ver_h)?;
 
     let major = content
