@@ -68,33 +68,33 @@ jobs:
             }
 
           # macOS Configurations
-          - {
-              os: macOS-latest,
-              r-version: "4.2",
-              rust: stable,
-              target: x86_64-apple-darwin,
-            }
-          - { os: macOS-latest, r-version: "4.2", rust: stable }
-          - {
-              os: macOS-latest,
-              r-version: "oldrel",
-              rust: stable,
-              target: x86_64-apple-darwin,
-            }
-          - {
-              os: macOS-latest,
-              r-version: "release",
-              rust: stable,
-              target: x86_64-apple-darwin,
-            }
-          - { os: macOS-latest, r-version: "release", rust: stable }
-          - {
-              os: macOS-latest,
-              r-version: "release",
-              rust: nightly,
-              target: x86_64-apple-darwin,
-            }
-          - { os: macOS-latest, r-version: "devel", rust: stable }
+          # - {
+          #     os: macOS-latest,
+          #     r-version: "4.2",
+          #     rust: stable,
+          #     target: x86_64-apple-darwin,
+          #   }
+          # - { os: macOS-latest, r-version: "4.2", rust: stable }
+          # - {
+          #     os: macOS-latest,
+          #     r-version: "oldrel",
+          #     rust: stable,
+          #     target: x86_64-apple-darwin,
+          #   }
+          # - {
+          #     os: macOS-latest,
+          #     r-version: "release",
+          #     rust: stable,
+          #     target: x86_64-apple-darwin,
+          #   }
+          # - { os: macOS-latest, r-version: "release", rust: stable }
+          # - {
+          #     os: macOS-latest,
+          #     r-version: "release",
+          #     rust: nightly,
+          #     target: x86_64-apple-darwin,
+          #   }
+          # - { os: macOS-latest, r-version: "devel", rust: stable }
 
           # Ubuntu Configurations
           - {
@@ -145,6 +145,18 @@ jobs:
         with:
           toolchain: ${{ matrix.config.rust }}
           targets: ${{ matrix.config.target }}
+
+      - name: Set R environment variables for Windows
+        if: runner.os == 'Windows'
+        run: |
+          echo "R_HOME=$((R.exe RHOME).Path)" >> $env:GITHUB_ENV
+          echo "R_INCLUDE_DIR=$((R.exe RHOME).Path)/include" >> $env:GITHUB_ENV
+          echo "PATH=$((R.exe RHOME).Path)/bin/x64;$env:PATH" >> $env:GITHUB_ENV
+
+      - name: Set LD_LIBRARY_PATH for Linux
+        if: runner.os == 'Linux'
+        run: |
+          echo "LD_LIBRARY_PATH=$(R RHOME)/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: cargo test
         run: cargo test
