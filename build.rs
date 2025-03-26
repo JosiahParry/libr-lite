@@ -71,7 +71,10 @@ fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
 impl Version {
     fn try_new() -> Result<Self, Box<dyn Error>> {
         let include_dir = match std::env::var(ENVVAR_R_INCLUDE_DIR) {
-            Ok(v) => v,
+            Ok(v) => {
+                info!("R_INCLUDE_DIR: {v}");
+                v
+            }
             Err(_) => {
                 warn!("R_INCLUDE_DIR not found. Likely being built outside of R.");
                 let r_cmd = match cfg!(windows) {
@@ -131,7 +134,10 @@ impl InstallationPaths {
                 info!("R_HOME found at {res}");
                 res
             }
-            Ok(v) => v,
+            Ok(v) => {
+                info!("R_HOME: {v}");
+                v
+            }
         };
 
         Ok(InstallationPaths {
