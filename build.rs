@@ -1,3 +1,4 @@
+use build_print::{error, info, warn};
 use std::{
     error::Error,
     fs::read_to_string,
@@ -34,11 +35,11 @@ impl FromStr for Version {
 
 fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
     let ver_h = path.join("Rversion.h");
-    println!(
-        "cargo::warning=Attempting to read version from: {}",
-        ver_h.display()
-    );
-    let content = read_to_string(ver_h)?;
+    info!("Attempting to read version from {}", ver_h.display());
+    let content = read_to_string(ver_h).map_err(|e| {
+        error!("Unable to read Rversion.h: {}", e.to_string());
+        e
+    })?;
 
     let major = content
         .lines()
@@ -54,7 +55,17 @@ fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
         .and_then(|v| v.trim_matches('"').to_string().into())
         .unwrap_or_default();
 
-    Ok(Version::from_str(&format!("{major}.{minor}"))?)
+    let version = Version::from_str(&format!("{major}.{minor}")).map_err(|e| {
+        error!("Unable to parse R version: {}", e.to_string());
+        e
+    })?;
+
+    info!(
+        "R version found is: {}.{}.{}",
+        version.major, version.minor, version.patch
+    );
+
+    Ok(version)
 }
 
 impl Version {
@@ -62,9 +73,7 @@ impl Version {
         let include_dir = match std::env::var(ENVVAR_R_INCLUDE_DIR) {
             Ok(v) => v,
             Err(_) => {
-                println!(
-                    "cargo::warning=R_INCLUDE_DIR not found. Likely being built outside of R."
-                );
+                warn!("R_INCLUDE_DIR not found. Likely being built outside of R.");
                 let r_cmd = match cfg!(windows) {
                     true => "R.exe",
                     false => "R",
@@ -79,8 +88,17 @@ impl Version {
                     "cat(normalizePath(R.home('include')))",
                 ]);
 
+                info!("Running R command: {:?}", cmd);
+
                 let out = cmd.output()?.stdout;
-                String::from_utf8(out)?
+
+                let res = String::from_utf8(out).map_err(|e| {
+                    error!("Unable to parse R output");
+                    e
+                })?;
+
+                info!("R command output: {:?}", res);
+                res
             }
         };
 
@@ -100,16 +118,17 @@ impl InstallationPaths {
         // If R_HOME is unset then we try and call R directly.
         let r_home = match std::env::var(ENVVAR_R_HOME) {
             Err(_) => {
-                println!("cargo::warning=R_HOME not found. Likely being built outside of R.");
+                warn!("R_HOME not found. Trying to fetch from R directly.");
                 let r_cmd = match cfg!(windows) {
                     true => "R.exe",
                     false => "R",
                 };
 
                 let mut cmd = Command::new(r_cmd);
-                cmd.args(["-s", "-e", "cat(R.home())"]);
+                cmd.args(["-s", "-e", "cat(normalizePath(R.home()))"]);
+                info!("Running R command: {cmd:?}");
                 let res = String::from_utf8(cmd.output()?.stdout)?;
-                println!("cargo::warning=R_HOME found at {res}");
+                info!("R_HOME found at {res}");
                 res
             }
             Ok(v) => v,
@@ -138,6 +157,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:r_version_patch={}", r_paths.version.patch);
 
     let pkg_target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+
     let libdir = match (cfg!(windows), pkg_target_arch.as_str()) {
         // For Windows
         (true, "x86_64") => Path::new(&r_paths.r_home).join("bin").join("x64"),
@@ -147,9 +167,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         (false, _) => Path::new(&r_paths.r_home).join("lib"),
     };
 
+    info!("R library paths determined to be at: {libdir:?}");
+
     if let Ok(r_library) = libdir.canonicalize() {
         println!("cargo:rustc-link-search={}", r_library.display());
     }
+
     println!("cargo:rustc-link-lib=dylib=R");
 
     // Set R version specfic config flags
@@ -166,5 +189,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Only re-run if the include directory changes
     println!("cargo:rerun-if-env-changed=R_INCLUDE_DIR");
 
+    build_print::custom_println!(" ✅ Success:", green, "libR-sys has been built!");
     Ok(())
 }

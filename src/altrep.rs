@@ -132,7 +132,7 @@ pub type R_altlist_Elt_method_t =
 pub type R_altlist_Set_elt_method_t =
     ::std::option::Option<unsafe extern "C" fn(arg1: SEXP, arg2: R_xlen_t, arg3: SEXP)>;
 
-unsafe extern "C" {
+extern "C" {
     pub fn R_altrep_data1(x: SEXP) -> SEXP;
     pub fn R_altrep_data2(x: SEXP) -> SEXP;
     pub fn R_new_altrep(aclass: R_altrep_class_t, data1: SEXP, data2: SEXP) -> SEXP;

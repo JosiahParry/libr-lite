@@ -384,7 +384,7 @@ pub struct GESystemDesc {
     pub callback: GEcallback,
 }
 
-unsafe extern "C" {
+extern "C" {
 
     // Functions
     pub fn GEaddDevice2(arg1: pGEDevDesc, arg2: *const ::std::os::raw::c_char);

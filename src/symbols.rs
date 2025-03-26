@@ -1,6 +1,6 @@
 use crate::SEXP;
 
-unsafe extern "C" {
+extern "C" {
     #[doc = "\"base\""]
     pub static mut R_BaseSymbol: SEXP;
     #[doc = "\"\" as a STRSXP"]
@@ -74,7 +74,7 @@ unsafe extern "C" {
     pub static mut R_dot_Method: SEXP;
     #[doc = "\".packageName\""]
     pub static mut R_dot_packageName: SEXP;
- 
-   #[doc = "\".target\""]
+
+    #[doc = "\".target\""]
     pub static mut R_dot_target: SEXP;
 }

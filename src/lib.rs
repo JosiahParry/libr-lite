@@ -22,7 +22,7 @@ pub use non_api::*;
 #[derive(Debug)]
 pub struct SEXPREC(std::ffi::c_void);
 
-unsafe extern "C" {
+extern "C" {
     // Return type should match `SEXPTYPE`
     pub fn TYPEOF(x: SEXP) -> SEXPTYPE;
 }
@@ -225,7 +225,7 @@ pub struct R_inpstream_st {
     pub nat2utf8_obj: *mut ::std::os::raw::c_void,
 }
 
-unsafe extern "C" {
+extern "C" {
     #[doc = "IEEE NaN"]
     pub static mut R_NaN: f64;
     #[doc = "IEEE Inf"]
@@ -567,7 +567,7 @@ mod tests {
     fn test_eval() {
         start_R();
         use crate::*;
-        unsafe extern "C" {
+        extern "C" {
             pub fn R_ParseEvalString(arg1: *const ::std::os::raw::c_char, arg2: SEXP) -> SEXP;
         }
         unsafe {

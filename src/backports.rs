@@ -9,7 +9,7 @@
 
 use crate::SEXP;
 // In your extern "C" block:
-unsafe extern "C" {
+extern "C" {
     #[cfg(not(r_4_5))]
     pub fn ENCLOS(x: SEXP) -> SEXP;
 
