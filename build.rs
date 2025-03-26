@@ -199,7 +199,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("cargo:rustc-link-search={}", r_library.display());
     }
 
-    println!("cargo:rustc-link-lib=dylib=R");
+    // Different library names for MSVC vs GNU
+    match std::env::var("CARGO_CFG_TARGET_ENV").unwrap().as_str() {
+        "msvc" => println!("cargo:rustc-link-lib=R.dll"), // For MSVC toolchain
+        _ => println!("cargo:rustc-link-lib=dylib=R"),    // For GNU toolchain
+    }
 
     // Set R version specfic config flags
     // use r_4_4 config
