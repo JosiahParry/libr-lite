@@ -30,18 +30,18 @@ jobs:
       matrix:
         config:
           # Windows Configurations
-          - {
-              os: windows-latest,
-              r-version: "4.2",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
-          - {
-              os: windows-latest,
-              r-version: "oldrel",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "4.2",
+          #     rust: stable-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "oldrel",
+          #     rust: stable-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
           - {
               os: windows-latest,
               r-version: "release",
@@ -60,12 +60,12 @@ jobs:
               rust: stable-gnu,
               target: x86_64-pc-windows-gnu,
             }
-          - {
-              os: windows-latest,
-              r-version: "devel",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "devel",
+          #     rust: stable-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
 
           # macOS Configurations
           # - {

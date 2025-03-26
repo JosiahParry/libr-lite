@@ -75,7 +75,10 @@ impl Version {
                 cmd.args(["--vanilla", "-s", "-e", "cat(R.home('include'))"]);
 
                 let out = cmd.output()?.stdout;
-                String::from_utf8(out)?
+                let include_path = String::from_utf8(out)?;
+                include_path
+                    .trim()
+                    .replace('/', std::path::MAIN_SEPARATOR_STR)
             }
         };
 
