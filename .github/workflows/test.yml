@@ -67,7 +67,7 @@ jobs:
               target: x86_64-pc-windows-gnu,
             }
 
-          macOS Configurations
+          # macOS Configurations
           - {
               os: macOS-latest,
               r-version: "4.2",
@@ -96,7 +96,7 @@ jobs:
             }
           - { os: macOS-latest, r-version: "devel", rust: stable }
 
-          Ubuntu Configurations
+          # Ubuntu Configurations
           - {
               os: ubuntu-latest,
               r-version: "4.2",
