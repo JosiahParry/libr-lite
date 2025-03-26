@@ -69,39 +69,49 @@ fn read_r_ver(path: &Path) -> Result<Version, Box<dyn Error>> {
 }
 
 impl Version {
+    fn get_r_include() -> Result<String, Box<dyn Error>> {
+        let r_cmd = match cfg!(windows) {
+            true => "R.exe",
+            false => "R",
+        };
+
+        let mut cmd = Command::new(r_cmd);
+        // print the include dir from R
+        cmd.args([
+            "--vanilla",
+            "-s",
+            "-e",
+            "cat(normalizePath(R.home('include')))",
+        ]);
+
+        info!("Running R command: {:?}", cmd);
+
+        let out = cmd.output()?.stdout;
+
+        let res = String::from_utf8(out).map_err(|e| {
+            error!("Unable to parse R output");
+            e
+        })?;
+
+        info!("R command output: {:?}", res);
+        Ok(res)
+    }
+
     fn try_new() -> Result<Self, Box<dyn Error>> {
         let include_dir = match std::env::var(ENVVAR_R_INCLUDE_DIR) {
             Ok(v) => {
+                let v = if v.is_empty() {
+                    warn!("R_INCLUDE_DIR environment variable is empty.");
+                    Self::get_r_include()?
+                } else {
+                    v
+                };
                 info!("R_INCLUDE_DIR: {v}");
                 v
             }
             Err(_) => {
                 warn!("R_INCLUDE_DIR not found. Likely being built outside of R.");
-                let r_cmd = match cfg!(windows) {
-                    true => "R.exe",
-                    false => "R",
-                };
-
-                let mut cmd = Command::new(r_cmd);
-                // print the include dir from R
-                cmd.args([
-                    "--vanilla",
-                    "-s",
-                    "-e",
-                    "cat(normalizePath(R.home('include')))",
-                ]);
-
-                info!("Running R command: {:?}", cmd);
-
-                let out = cmd.output()?.stdout;
-
-                let res = String::from_utf8(out).map_err(|e| {
-                    error!("Unable to parse R output");
-                    e
-                })?;
-
-                info!("R command output: {:?}", res);
-                res
+                Self::get_r_include()?
             }
         };
 
@@ -117,24 +127,34 @@ struct InstallationPaths {
 }
 
 impl InstallationPaths {
+    fn get_r_home() -> Result<String, Box<dyn Error>> {
+        let r_cmd = match cfg!(windows) {
+            true => "R.exe",
+            false => "R",
+        };
+
+        let mut cmd = Command::new(r_cmd);
+        cmd.args(["-s", "-e", "cat(normalizePath(R.home()))"]);
+        info!("Running R command: {cmd:?}");
+        let res = String::from_utf8(cmd.output()?.stdout)?;
+        info!("R_HOME found at {res}");
+        Ok(res)
+    }
+
     fn try_new() -> Result<Self, Box<dyn Error>> {
         // If R_HOME is unset then we try and call R directly.
         let r_home = match std::env::var(ENVVAR_R_HOME) {
             Err(_) => {
                 warn!("R_HOME not found. Trying to fetch from R directly.");
-                let r_cmd = match cfg!(windows) {
-                    true => "R.exe",
-                    false => "R",
-                };
-
-                let mut cmd = Command::new(r_cmd);
-                cmd.args(["-s", "-e", "cat(normalizePath(R.home()))"]);
-                info!("Running R command: {cmd:?}");
-                let res = String::from_utf8(cmd.output()?.stdout)?;
-                info!("R_HOME found at {res}");
-                res
+                Self::get_r_home()?
             }
             Ok(v) => {
+                let v = if v.is_empty() {
+                    warn!("R_HOME is empty. Trying to fetch from R directly");
+                    Self::get_r_home()?
+                } else {
+                    v
+                };
                 info!("R_HOME: {v}");
                 v
             }
