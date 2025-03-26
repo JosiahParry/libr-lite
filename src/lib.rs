@@ -1,3 +1,60 @@
+//! A low-level libR binding library which is kept deliberately
+//! minimal. `libR-sys` powers the `extendr-api` library.
+//!
+//! In particular, it has no external dependencies other than libR installed on the target.
+//!
+//!
+//! ## Synopsis
+//!
+//! The `libR-sys` crate is a low-level wrapper for the
+//! R programming language. The intention is to allow one or
+//! more extension mechanisms to be implemented for rust.
+//!
+//! Effort to make the extension libraries platform-independent can be
+//! concentrated here.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use libR_sys::{Rf_initialize_R, R_CStackLimit, setup_Rmainloop};
+//! use std::os::raw;
+//!
+//! unsafe {
+//!   std::env::set_var("R_HOME", "/usr/lib/R");
+//!   let arg0 = "R\0".as_ptr() as *mut raw::c_char;
+//!   Rf_initialize_R(1, [arg0].as_mut_ptr());
+//!   R_CStackLimit = usize::max_value();
+//!   setup_Rmainloop();
+//! }
+//! ```
+//! # Conditional compilation depending on R installation
+//!
+//! The libR-sys crate provides these environmental variables that you can use in `build.rs`:
+//!
+//! - `DEP_R_R_VERSION_MAJOR`: The major part of the R version (e.g. `4` in version `4.1.0`)
+//! - `DEP_R_R_VERSION_MINOR`: The minor part of the R version (e.g. `1` in version `4.1.0`)
+//! - `DEP_R_R_VERSION_PATCH`: The patch part of the R version (e.g. `0` in version `4.1.0`)
+//! - `DEP_R_R_HOME`: The R home directory
+//!
+//! ## Example `build.rs`
+//!
+//! ```ignore
+//! use std::env;
+//!
+//! fn main() {
+//!     // Set R_HOME envvar, and refer to it on compile time by env!("R_HOME")
+//!     let r_home = env::var("DEP_R_R_HOME").unwrap();
+//!     println!("cargo:rustc-env=R_HOME={}", r_home);
+//!
+//!     // Enable cfg setting to conditionally compile a code using a feature
+//!     // available only on newer versions of R
+//!     let major = env::var("DEP_R_R_VERSION_MAJOR").unwrap();
+//!     let minor = env::var("DEP_R_R_VERSION_MINOR").unwrap();
+//!     if &*major >= "4" && &*minor >= "1" {
+//!         println!("cargo:rustc-cfg=use_a_feature");
+//!     }
+//! }
+//! ```
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
@@ -23,12 +80,13 @@ pub use non_api::*;
 pub struct SEXPREC(std::ffi::c_void);
 
 extern "C" {
-    // Return type should match `SEXPTYPE`
+    /// Returns the [SEXPTYPE] of `x`
     pub fn TYPEOF(x: SEXP) -> SEXPTYPE;
 }
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+/// A C type with enumeration constants FALSE and TRUE defined.
 pub enum Rboolean {
     #[doc = ", MAYBE"]
     FALSE = 0,
@@ -53,7 +111,7 @@ pub type Rbyte = ::std::os::raw::c_uchar;
 #[doc = "type for length of (standard, not long) vectors etc"]
 pub type R_len_t = ::std::os::raw::c_int;
 #[repr(u32)]
-#[doc = "------ enum_SEXPTYPE -----"]
+/// Enum of possible SEXP types
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum SEXPTYPE {
     #[doc = "nil = NULL"]
@@ -242,8 +300,6 @@ extern "C" {
     pub fn R_finite(arg1: f64) -> ::std::os::raw::c_int;
     pub fn Rprintf(arg1: *const ::std::os::raw::c_char, ...);
     pub fn REprintf(arg1: *const ::std::os::raw::c_char, ...);
-    pub fn ALTREP(x: SEXP) -> ::std::os::raw::c_int;
-    pub fn ALTREP_CLASS(x: SEXP) -> SEXP;
     pub fn CAR(e: SEXP) -> SEXP;
     pub fn CDR(e: SEXP) -> SEXP;
     pub fn COMPLEX(x: SEXP) -> *mut Rcomplex;

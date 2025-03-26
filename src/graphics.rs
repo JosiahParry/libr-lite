@@ -1,3 +1,4 @@
+//! Graphics Engine support
 use super::*;
 
 pub const R_GE_version: u32 = 16;

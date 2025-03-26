@@ -1,3 +1,4 @@
+//! Statics representing R Symbols
 use crate::SEXP;
 
 extern "C" {
@@ -7,6 +8,7 @@ extern "C" {
     pub static mut R_BlankScalarString: SEXP;
     #[doc = "\"\" as a CHARSXP"]
     pub static mut R_BlankString: SEXP;
+    #[doc = "\"{\""]
     pub static mut R_BraceSymbol: SEXP;
     #[doc = "\"\\[\\[\""]
     pub static mut R_Bracket2Symbol: SEXP;
