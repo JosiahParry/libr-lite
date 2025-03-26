@@ -30,36 +30,36 @@ jobs:
       matrix:
         config:
           # Windows Configurations
-          - {
-              os: windows-latest,
-              r-version: "4.2",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
-          - {
-              os: windows-latest,
-              r-version: "oldrel",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
-          - {
-              os: windows-latest,
-              r-version: "release",
-              rust: stable-msvc,
-              target: x86_64-pc-windows-gnu,
-            }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "4.2",
+          #     rust: stable-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "oldrel",
+          #     rust: stable-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
           - {
               os: windows-latest,
               r-version: "release",
-              rust: nightly-msvc,
+              rust: stable-msvc,
               target: x86_64-pc-windows-gnu,
             }
-          - {
-              os: windows-latest,
-              r-version: "release",
-              rust: stable-gnu,
-              target: x86_64-pc-windows-gnu,
-            }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "release",
+          #     rust: nightly-msvc,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
+          # - {
+          #     os: windows-latest,
+          #     r-version: "release",
+          #     rust: stable-gnu,
+          #     target: x86_64-pc-windows-gnu,
+          #   }
           # - {
           #     os: windows-latest,
           #     r-version: "devel",
@@ -148,20 +148,19 @@ jobs:
 
       - name: Configure Windows
         if: runner.os == 'Windows'
-        shell: pwsh
         run: |
-          # Configure linker to use MinGW-w64
-          echo "RUSTFLAGS=-C linker=x86_64-w64-mingw32-gcc.exe" >> $env:GITHUB_ENV
+          # Configure linker
+          echo "RUSTFLAGS=-C linker=x86_64-w64-mingw32.static.posix-gcc.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          # Create mock gcc libraries (needed for Windows builds)
+          # Create libgcc_eh mock
           New-Item -Path libgcc_mock -Type Directory
           New-Item -Path libgcc_mock\libgcc_eh.a -Type File
           New-Item -Path libgcc_mock\libgcc_s.a -Type File
-          $pwd_slash = $PWD -replace '\\','/'
-          echo "LIBRARY_PATH=${pwd_slash}/libgcc_mock" >> $env:GITHUB_ENV
+          $pwd_slash = echo "${PWD}" | % {$_ -replace '\\','/'}
+          echo "LIBRARY_PATH=${pwd_slash}/libgcc_mock" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          # Add R's bin directory to PATH
-          echo "PATH=$((R.exe RHOME).Path)/bin/x64;$env:PATH" >> $env:GITHUB_ENV
+          # Add R bin path to PATH
+          ec
 
       - name: Set LD_LIBRARY_PATH for Linux
         if: runner.os == 'Linux'
