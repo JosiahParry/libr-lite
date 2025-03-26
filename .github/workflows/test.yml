@@ -146,9 +146,21 @@ jobs:
           toolchain: ${{ matrix.config.rust }}
           targets: ${{ matrix.config.target }}
 
-      - name: Set R environment variables for Windows
+      - name: Configure Windows
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
+          # Configure linker to use MinGW-w64
+          echo "RUSTFLAGS=-C linker=x86_64-w64-mingw32-gcc.exe" >> $env:GITHUB_ENV
+
+          # Create mock gcc libraries (needed for Windows builds)
+          New-Item -Path libgcc_mock -Type Directory
+          New-Item -Path libgcc_mock\libgcc_eh.a -Type File
+          New-Item -Path libgcc_mock\libgcc_s.a -Type File
+          $pwd_slash = $PWD -replace '\\','/'
+          echo "LIBRARY_PATH=${pwd_slash}/libgcc_mock" >> $env:GITHUB_ENV
+
+          # Add R's bin directory to PATH
           echo "PATH=$((R.exe RHOME).Path)/bin/x64;$env:PATH" >> $env:GITHUB_ENV
 
       - name: Set LD_LIBRARY_PATH for Linux
