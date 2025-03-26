@@ -72,13 +72,15 @@ impl Version {
 
                 let mut cmd = Command::new(r_cmd);
                 // print the include dir from R
-                cmd.args(["--vanilla", "-s", "-e", "cat(R.home('include'))"]);
+                cmd.args([
+                    "--vanilla",
+                    "-s",
+                    "-e",
+                    "cat(normalizePath(R.home('include')))",
+                ]);
 
                 let out = cmd.output()?.stdout;
-                let include_path = String::from_utf8(out)?;
-                include_path
-                    .trim()
-                    .replace('/', std::path::MAIN_SEPARATOR_STR)
+                String::from_utf8(out)?
             }
         };
 
